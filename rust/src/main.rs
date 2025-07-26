@@ -49,20 +49,20 @@ fn main() -> Result<(), Box<dyn Error>> {
         Auth::UserPass(RPC_USER.to_owned(), RPC_PASS.to_owned()),
     )?;
 
-    println!("\n Connected to Bitcoin Core RPC at {}", RPC_URL);
+    println!("\n Connected to Bitcoin Core RPC at {RPC_URL}");
 
     // Fetch and display blockchain info using get blockchain info
     let blockchain_info = rpc.get_blockchain_info()?;
-    println!("Blockchain Info: {:?}", blockchain_info);
+    println!("Blockchain Info: {blockchain_info:?}");
 
     // Ensure 'Miner' and 'Trader' wallets exist; this function is to ensure a wallet exists. If not, create it.
     fn ensure_wallet_exists(rpc: &Client, wallet_name: &str) -> Result<(), Box<dyn Error>> {
         let loaded_wallets = rpc.list_wallets()?;
         if !loaded_wallets.contains(&wallet_name.to_string()) {
-            println!("Creating wallet: {}", wallet_name);
+            println!("Creating wallet: {wallet_name}");
             rpc.create_wallet(wallet_name, None, None, None, None)?;
         } else {
-            println!("Wallet already exists: {}", wallet_name);
+            println!("Wallet already exists: {wallet_name}");
         }
         Ok(())
     }
@@ -75,11 +75,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     //You must manually create and load them by name.
 
     let miner = Client::new(
-        &format!("{}/wallet/Miner", RPC_URL),
+        &format!("{RPC_URL}/wallet/Miner"),
         Auth::UserPass(RPC_USER.to_string(), RPC_PASS.to_string()),
     )?;
     let trader = Client::new(
-        &format!("{}/wallet/Trader", RPC_URL),
+        &format!("{RPC_URL}/wallet/Trader"),
         Auth::UserPass(RPC_USER.to_string(), RPC_PASS.to_string()),
     )?;
 
@@ -92,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .get_new_address(Some("Mining Reward"), None)? // Changed to exact label required by instructions
         .require_network(bitcoincore_rpc::bitcoin::Network::Regtest)?;
 
-    println!("Miner address: {}", miner_address);
+    println!("Miner address: {miner_address}");
 
     // Mine blocks until coinbase reward is spendable (requires maturity of 100 blocks)
     let mut blocks_mined = 0;
@@ -112,10 +112,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Block {} → Balance: {} BTC", blocks_mined, balance.to_btc());
 
         if balance.to_btc() > 0.0 {
-            println!(
-                "Spendable balance achieved after {} blocks mined.",
-                blocks_mined
-            );
+            println!("Spendable balance achieved after {blocks_mined} blocks mined.");
             break;
         }
     }
@@ -125,7 +122,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let trader_address = trader
         .get_new_address(Some("Received"), None)? //Generates a fresh BTC address from Trader wallet with correct label
         .require_network(bitcoincore_rpc::bitcoin::Network::Regtest)?;
-    println!("Trader receiving address: {}", trader_address);
+    println!("Trader receiving address: {trader_address}");
 
     // Send 20 BTC from Miner wallet to Trader's receivinf address (Defines 20.0 BTC using the Amount::from_btc() helper.)
     let amount_to_send = Amount::from_btc(20.0)?;
@@ -141,7 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         None,
         None,
     )?;
-    println!("You have Sent 20 BTC 🪙 to Trader. TxID: {}", txid);
+    println!("You have Sent 20 BTC 🪙 to Trader. TxID: {txid}");
 
     // Check if TX is in mempool (`get_raw_mempool()` is used to confirm if a transaction is pending (i.e., unconfirmed). If it's listed, that means it is awaiting inclusion in a block.)
     let mempool = miner.get_raw_mempool()?;
@@ -149,7 +146,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Transaction is in the mempool.");
         // Fetch the unconfirmed transaction from the node's mempool as requested in instructions (using getmempoolentry)
         let mempool_entry = miner.get_mempool_entry(&txid)?;
-        println!("Mempool entry details: {:?}", mempool_entry);
+        println!("Mempool entry details: {mempool_entry:?}");
     } else {
         println!("⚠️ Transaction not found in mempool.");
     }
@@ -191,7 +188,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let prev_tx = miner.get_raw_transaction_info(&input_txid, None)?;
 
     if prev_tx.vout.len() <= input_vout as usize {
-        return Err("Invalid input reference".into());
+        Err("Invalid input reference".into())
     } else {
         let prev_output = &prev_tx.vout[input_vout as usize];
 
@@ -237,35 +234,35 @@ fn main() -> Result<(), Box<dyn Error>> {
 
         // Print all details to terminal for verification
         println!("\nTransaction Details:");
-        println!("Transaction ID: {}", txid);
-        println!("Miner Input Address: {}", miner_input_address);
+        println!("Transaction ID: {txid}");
+        println!("Miner Input Address: {miner_input_address}");
         println!("Miner Input Amount: {:.8} BTC", miner_input_amount.to_btc()); // values are formatted to 8 decimal places using `{:.8}` for Bitcoin precision.
-        println!("Trader Output Address: {}", trader_output_address);
+        println!("Trader Output Address: {trader_output_address}");
         println!(
             "Trader Output Amount: {:.8} BTC",
             trader_output_amount.to_btc()
         );
-        println!("Miner Change Address: {}", miner_change_address);
+        println!("Miner Change Address: {miner_change_address}");
         println!(
             "Miner Change Amount: {:.8} BTC",
             miner_change_amount.to_btc()
         );
         println!("Fee: {:.8} BTC", fee.to_btc());
-        println!("Block Height: {}", block_height);
-        println!("Block Hash: {}", block_hash);
+        println!("Block Height: {block_height}");
+        println!("Block Hash: {block_hash}");
 
         // Carefullly write all 10 required transaction fields and blok info to out.txt file (changed from ../out.txt to current directory)
         let mut file = File::create("out.txt")?; // Fixed: Write to current directory instead of ../out.txt
-        writeln!(file, "{}", txid)?;
-        writeln!(file, "{}", miner_input_address)?;
+        writeln!(file, "{txid}")?;
+        writeln!(file, "{miner_input_address}")?;
         writeln!(file, "{}", miner_input_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
-        writeln!(file, "{}", trader_output_address)?;
+        writeln!(file, "{trader_output_address}")?;
         writeln!(file, "{}", trader_output_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
-        writeln!(file, "{}", miner_change_address)?;
+        writeln!(file, "{miner_change_address}")?;
         writeln!(file, "{}", miner_change_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
         writeln!(file, "{}", fee.to_btc())?; // Use .to_btc() for proper decimal formatting
-        writeln!(file, "{}", block_height)?;
-        writeln!(file, "{}", block_hash)?;
+        writeln!(file, "{block_height}")?;
+        writeln!(file, "{block_hash}")?;
 
         println!("\n All required values written to out.txt for test evaluation"); // Updated message to reflect correct file location
         play_celebration_animation();
