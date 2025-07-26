@@ -241,9 +241,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Miner Input Address: {}", miner_input_address);
         println!("Miner Input Amount: {:.8} BTC", miner_input_amount.to_btc()); // values are formatted to 8 decimal places using `{:.8}` for Bitcoin precision.
         println!("Trader Output Address: {}", trader_output_address);
-        println!("Trader Output Amount: {:.8} BTC", trader_output_amount.to_btc());
+        println!(
+            "Trader Output Amount: {:.8} BTC",
+            trader_output_amount.to_btc()
+        );
         println!("Miner Change Address: {}", miner_change_address);
-        println!("Miner Change Amount: {:.8} BTC", miner_change_amount.to_btc());
+        println!(
+            "Miner Change Amount: {:.8} BTC",
+            miner_change_amount.to_btc()
+        );
         println!("Fee: {:.8} BTC", fee.to_btc());
         println!("Block Height: {}", block_height);
         println!("Block Hash: {}", block_hash);
