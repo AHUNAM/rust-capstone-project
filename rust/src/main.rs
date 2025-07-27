@@ -85,11 +85,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Wallets Miner and Trader are ready.");
 
-    // Generate spendable balance by mining until matured coinbase; this has to do with how many blocks are to be mined for coinbase rewards
-    // Coinbase rewards in Bitcoin require 100 block confirmations before they can be spent preventing miners from re-orging the chain to reclaim their own rewards.
-    // Generate address with the exact label "Mining Reward" as specified in instructions
+    // Generate spendable balance by mining until matured coinbase / positive coin balance.
     let miner_address = miner
-        .get_new_address(Some("Mining Reward"), None)? // Changed to exact label required by instructions
+        .get_new_address(Some("Mining Reward"), None)? // Changed to exact label "Mining Reward" as specified in the test specification
         .require_network(bitcoincore_rpc::bitcoin::Network::Regtest)?;
 
     println!("Miner address: {miner_address}");
@@ -117,14 +115,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    // Generate Trader receiving address (this is the recipient of the 20 BTC transaction.)
-    // Generate address with exact label "Received" as specified in instructions
+    /*When I ran the code, the wallet balance became positive only after mining 101 blocks.
+
+    Coinbase rewards (mining rewards) take 100 blocks to mature before they show in your wallet as spendable, protecting the network from fraud and block manipulation by miners.
+
+    Newly mined coins (aka coinbase rewards) can’t be spent until they get these 100 confirmations (i.e., 100 more blocks are added on top), because of this Bitcoin rule.
+    This rule exists to prevent cheating by miners. Without it, a miner could: Mine a block, spend the reward immediately, and then rewrite the chain (reorganize it) to keep the reward and erase the spend.
+
+    With a 100-block delay, Bitcoin makes it very hard to reverse that block or cheat.*/
+
+    // Generate Trader receiving address (this is the recipient of the 20 BTC transaction.) with exact label "Received" just as it was specified in test specification
     let trader_address = trader
-        .get_new_address(Some("Received"), None)? //Generates a fresh BTC address from Trader wallet with correct label
+        .get_new_address(Some("Received"), None)? //generates a fresh BTC address from Trader wallet with correct label
         .require_network(bitcoincore_rpc::bitcoin::Network::Regtest)?;
     println!("Trader receiving address: {trader_address}");
 
-    // Send 20 BTC from Miner wallet to Trader's receivinf address (Defines 20.0 BTC using the Amount::from_btc() helper.)
+    // Send 20 BTC from Miner wallet to Trader's receiving address (Defines 20.0 BTC using the Amount::from_btc() helper.)
     let amount_to_send = Amount::from_btc(20.0)?;
 
     // The send_to_address RPC sends the specified amount to the given address (Sends that amount from the Miner wallet to the Trader's address using `send_to_address`. This broadcasts the transaction but doesn't confirm it yet.)
@@ -140,10 +146,17 @@ fn main() -> Result<(), Box<dyn Error>> {
     )?;
     println!("You have Sent 20 BTC 🪙 to Trader. TxID: {txid}");
 
+    let tx_info = miner.get_transaction(&txid, None)?;
+    println!(
+        "Transaction confirmed in Miner's wallet: {}",
+        tx_info.info.txid
+    );
+
     // Check if TX is in mempool (`get_raw_mempool()` is used to confirm if a transaction is pending (i.e., unconfirmed). If it's listed, that means it is awaiting inclusion in a block.)
     let mempool = miner.get_raw_mempool()?;
     if mempool.contains(&txid) {
         println!("Transaction is in the mempool.");
+
         // Fetch the unconfirmed transaction from the node's mempool as requested in instructions (using getmempoolentry)
         let mempool_entry = miner.get_mempool_entry(&txid)?;
         println!("Mempool entry details: {mempool_entry:?}");
@@ -151,20 +164,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("⚠️ Transaction not found in mempool.");
     }
 
+    // Animation for better user experience as transaaction processed
     fn play_celebration_animation() {
         let spinner = [
             "🌕", "🌖", "😮", "🌗", "🌘", "🤭", "🌑", "🌒", "🥰", "🌓", "😆", "😅", "😂", "🤣",
             "🌔", "🤑",
         ];
-        let delay = Duration::from_millis(150);
+        let delay = Duration::from_millis(150); // Give time for transaction to be processed
         let mut stdout = stdout();
 
         print!("Celebrating success ");
         for i in 0..spinner.len() * 3 {
             print!("\rCelebrating success {}", spinner[i % spinner.len()]);
-            print!("\x07"); // Play bell sound
+            print!("\x07"); // Plays bell sound
             stdout.flush().unwrap();
-            thread::sleep(delay);
+            thread::sleep(delay); //makes delay variable functional
         }
 
         println!("\r Your Transaction is confirmed and saved successfully! 🙂, Now you can go 🙄");
@@ -192,7 +206,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     } else {
         let prev_output = &prev_tx.vout[input_vout as usize];
 
-        let miner_input_address = format!("{:?}", prev_output.script_pub_key);
+        // let miner_input_address = format!("{:?}", prev_output.script_pub_key);
+        let script = prev_output.script_pub_key.script()?; // Unwrap script safely
+        let miner_input_address = bitcoin::Address::from_script(&script, bitcoin::Network::Regtest)
+            .map(|addr| addr.to_string())
+            .unwrap_or_else(|_| "Unknown".to_string());
 
         //Using amount as Amount type
         let miner_input_amount = prev_output.value;
@@ -207,11 +225,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         for output in decoded_tx.output.iter() {
             let value = output.value;
 
-            let address = format!("{:?}", output.script_pubkey);
+            let address =
+                bitcoin::Address::from_script(&output.script_pubkey, bitcoin::Network::Regtest)
+                    .map(|a| a.to_string())
+                    .unwrap_or_default();
 
-            let trader_script = format!("{:?}", trader_address.script_pubkey());
-
-            if address == trader_script {
+            if address == trader_address.to_string() {
                 trader_output_address = address;
                 trader_output_amount = value; // Fix 6: Keep as Amount
             } else {
@@ -251,18 +270,21 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Block Height: {block_height}");
         println!("Block Hash: {block_hash}");
 
-        // Carefullly write all 10 required transaction fields and blok info to out.txt file (changed from ../out.txt to current directory)
-        let mut file = File::create("out.txt")?; // Fixed: Write to current directory instead of ../out.txt
+        // Carefullly write all 10 required transaction details to the main directory ../out.txt
+        let mut file = File::create("../out.txt")?;
         writeln!(file, "{txid}")?;
         writeln!(file, "{miner_input_address}")?;
         writeln!(file, "{}", miner_input_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
         writeln!(file, "{trader_output_address}")?;
-        writeln!(file, "{}", trader_output_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
+        writeln!(file, "{}", trader_output_amount.to_btc())?;
         writeln!(file, "{miner_change_address}")?;
-        writeln!(file, "{}", miner_change_amount.to_btc())?; // Use .to_btc() for proper decimal formatting
-        writeln!(file, "{}", fee.to_btc())?; // Use .to_btc() for proper decimal formatting
+        writeln!(file, "{}", miner_change_amount.to_btc())?;
+        writeln!(file, "{}", fee.to_btc())?;
         writeln!(file, "{block_height}")?;
         writeln!(file, "{block_hash}")?;
+
+        //I placed a file flush here so that data will be written immediately
+        file.flush()?;
 
         println!("\n All required values written to out.txt for test evaluation"); // Updated message to reflect correct file location
         play_celebration_animation();

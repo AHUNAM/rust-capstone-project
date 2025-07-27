@@ -1,12 +1,12 @@
 # Setup nvm and install pre-req
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-nvm install --lts
-npm install
+#curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+#nvm install --lts
+#npm install
 
 set -e  # Exit immediately if any command fails
 
 # Spawn Bitcoind, and provide execution permission.
-docker compose up -d
+#docker-compose up -d
 sleep 10
 
 echo "Waiting for bitcoind to be fully initialized..."
@@ -33,4 +33,4 @@ chmod +x ./run.sh
 npm run test
 
 # Stop the docker.
-docker compose down -v
+docker-compose down -v
